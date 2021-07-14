@@ -1,4 +1,5 @@
-const { get } = require("./methods")({
+const { store, fetch } = require("./storage")("4chan.data");
+const { get } = require("./request")({
   endpoint: "https://a.4cdn.org/",
 });
 
@@ -10,19 +11,23 @@ const getPosts = (boardId, postId) => {
   return get(`${boardId}/thread/${postId}.json`);
 };
 
-const getConcat = async (boardId) => {
+const getConcat = async (boardId, local = false) => {
+  if (local) {
+    const buf = await fetch();
+    if (buf) {
+      return buf.toString();
+    }
+  }
+
   const pages = await getThreads(boardId);
   let threadIds = [];
-  const currentThreadIds = pages[0].threads.map((thread) => thread.no);
-  threadIds = threadIds.concat(currentThreadIds);
-  // pages.forEach((page) => {
-  //   const currentThreadIds = page.threads.map((thread) => thread.no);
-  //   threadIds = threadIds.concat(currentThreadIds);
-  // });
+
+  pages.forEach((page) => {
+    const currentThreadIds = page.threads.map((thread) => thread.no);
+    threadIds = threadIds.concat(currentThreadIds);
+  });
 
   let concat = "";
-
-  threadIds = threadIds.slice(3, 4);
 
   for (const threadId of threadIds) {
     const { posts } = await getPosts(boardId, threadId);
@@ -30,11 +35,13 @@ const getConcat = async (boardId) => {
       post.com
         ?.replace(/(<([^>]+)>)/gi, "")
         .replace(/&gt;?\d*/gi, "")
-        .replace(/&\w+;/gi, "")
+        .replace(/&\w+;/gi, " ")
         .replace(/&#039;/gi, "")
     );
     concat = concat.concat(comments);
   }
+
+  store(concat);
 
   return concat;
 };
